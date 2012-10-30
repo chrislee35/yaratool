@@ -1,0 +1,163 @@
+#!/usr/bin/env python
+import re
+import sys
+import hashlib
+
+__author__ =  'python@chrislee.dhs.org'
+__version__ = "0.0.1"
+__url__ = 'https://github.com/chrislee/yaratools'
+
+class YaraRule:
+    def __init__(self,ruletext):
+        """YaraRule takes in the text of one Yara Rule, rips it apart, normalizes it, and store parts it in various members"""
+        ruletext = re.sub('[\r\n]+','\n',ruletext)
+        self.original = ruletext
+        self.lookup_table = {}
+        self.next_replacement = 'a'
+
+        rulere = re.compile("rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s\-\_]+\w))?\s*\{\s*(meta:\s*(.*?))?strings:\s*(.*?)\s*condition:\s*(.*?)\s*\}", flags=(re.MULTILINE | re.DOTALL))
+        match = rulere.search(ruletext)
+        if not match:
+            raise Exception("YaraRule cannot parse the rule")
+        self.name,iftags,tags,ifmeta,metas,strings,conditions = match.groups()
+        if iftags:
+            self.tags = re.split('\s+', tags)
+        else:
+            self.tags = None
+
+        self.metas = {}
+        if ifmeta:
+            for item in re.split('\n+', metas):
+                if re.search('\w',item):
+                    k,v = re.split('\s*=\s*',item.strip(),maxsplit=2)
+                    self.metas[k] = v
+        if strings:
+            strarr = re.split('\n+', strings)
+            self.strings = []
+            for item in strarr:
+                # clear off beginning and ending spaces, tabs, etc.
+                item = item.strip()
+                # reformat the spacing around the first equals sign
+                item = re.sub('\s*=\s*', ' = ', item, 1)
+                # reformat any hex strings
+                hexmatch = re.search(r' = \{\s*([0-9a-fA-F\s]+?)\s*\}', item)
+                if hexmatch:
+                    hexstr = re.sub(r'\s', '', hexmatch.groups()[0]).lower()
+                    hexstr = " ".join([hexstr[i:i+2] for i in range(0,len(hexstr), 2)])
+                    item = re.sub(r' = \{\s*([0-9a-fA-F\s]+?)\s*\}', ' = { '+hexstr+' }', item)
+                self.strings.append(item)
+        else:
+            self.strings = ()
+        if conditions:
+            self.conditions = [re.sub('^\s+','', item) for item in re.split('\n+', conditions)]
+            self.normalized_conditions = [self._normalized_condition(con) for con in self.conditions]
+        else:
+            self.conditions = ()
+            
+    def _hex_normalize(self,var):
+        hexstring = var.group()
+        
+
+    def normalize(self):
+        """returns a text version of the rule, but in normalized formatting"""
+        text = "rule %s " % (self.name)
+        if self.tags:
+            text += ": %s " % (" ".join(self.tags))
+        text += "{\n"
+        if len(self.metas) > 0:
+            text += "  meta:\n"
+            for key in sorted(self.metas):
+                if re.search('\w',key):
+                    text += "    %s = %s\n" % (key,self.metas[key])
+        if len(self.strings) > 0:
+            text += "  strings:\n"
+            for string in self.strings:
+                if re.search('\w',string):
+                    text += "    %s\n" % (string)
+        if len(self.conditions) > 0:
+            text += "  condition:\n"
+            for condition in self.conditions:
+                if re.search('\w',condition):
+                    text += "    %s\n" % (condition)
+        text += "}"
+        return text
+        
+    def _replace_var(self,var):
+        var = var.group()
+        key = var[1:]
+        rep = self.lookup_table.get(key)
+        if rep:
+            return var[0]+rep
+        self.lookup_table[key] = self.next_replacement
+        self.next_replacement = chr(ord(self.next_replacement)+1)
+        return var[0]+self.lookup_table[key]
+        
+    def _normalized_condition(self,conditions):
+        return re.sub(r'[\$\#]\w+',self._replace_var,conditions)
+        
+    def hash(self):
+        """
+        returns a normalized yara hash, version 01, the idea is that rules with the same strings and condition should evaluate to the same hash.
+        e.g., yn01:042c1fd05933b9b1:4ca58b3314
+        """
+        normalized_strings = "%".join(sorted([re.sub('^.*?=\s*','',string.strip()) for string in self.strings]))
+        self.normalized_strings = normalized_strings
+        normalized_condition = '%'.join([con.strip() for con in self.normalized_conditions])
+        strhash = hashlib.md5(normalized_strings).hexdigest()
+        conhash = hashlib.md5(normalized_condition).hexdigest()
+        return "yn01:"+strhash[-16:]+":"+conhash[-10:]
+
+class DuplicateDetector:
+    def __init__(self):
+        self.rules = {}
+    
+    def check(self,rule):
+        """
+        check(rule) takes in a YaraRule object and checks if it's a duplicate
+        input: a YaraRule
+        output: list of any duplicates (via hash or name) that is know
+        
+        this updates the database of previously seen rules.  rules are considered the same (duplicate) if the rule hash matches or the name of the rule matches.
+        """
+        oldrule = self.rules.get(rule.hash())
+        oldrule2 = self.rules.get(rule.name)
+        result = []
+        if oldrule:
+            result.append(oldrule)
+        else:
+            self.rules[rule.hash()] = rule
+        if oldrule2:
+            result.append(oldrule)
+        else:
+            self.rules[rule.name] = rule
+        return result
+
+def split(rulestext):
+    """splits breaks apart a set of yara signatures and returns an array of YaraRule objects
+    input: string containing one or more yara signatures
+    output: array ("list" in python-speak) of YaraRule objects
+    """
+    # remove comment lines from signatures
+    commentre = re.compile(r"^\s*\/\/.*$",flags=re.MULTILINE)
+    rulestext = commentre.sub('', rulestext)
+    # extract all the well-formed rules
+    rulere = re.compile("(rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s]+\w))?\s*\{\s*(meta:\s*(.*?))?strings:\s*(.*?)\s*condition:\s*(.*?)\s*\})", flags=(re.MULTILINE | re.DOTALL))
+    # pass each rule to a YaraRule instance for normalization
+    rules = [YaraRule(ruletext[0]) for ruletext in rulere.findall(rulestext)]
+    return rules
+
+if __name__ == "__main__":
+    count = 0
+    duplicates = 0
+    drf = DuplicateDetector()
+    for filename in sys.argv:
+        fh = open(filename, 'r')
+        sigrules = fh.read()
+        fh.close()
+        rules = split(sigrules)
+        for rule in rules:
+            ynhash = rule.hash()
+            print "%s %s %s" % (rule.name, ynhash, rule.normalized_strings)
+            #print rule.normalized_strings
+        count += len(rules)
+    print "Count: %d, Duplicates: %d" % (count, duplicates)
