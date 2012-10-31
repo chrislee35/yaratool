@@ -102,15 +102,47 @@ class TestYaraTool(unittest.TestCase):
         }"""
         yn = yaratool.YaraRule(ruletext)
         self.failUnlessEqual("yn01:a5fd8576f2da34e2:d936fceffe", yn.hash())
-        self.failUnlessEqual("1", yn.meta['weight'])
+        self.failUnlessEqual("1", yn.metas['weight'])
         self.failUnlessEqual("DataConversion__wide", yn.name)
         self.failUnlessEqual(["IntegerParsing", "DataConversion"], yn.tags)
         self.failUnlessEqual(["$ = \"wtoi\" nocase",
                             "$ = \"wtol\" nocase",
                             "$ = \"wtof\" nocase",
                             "$ = \"wtodb\" nocase"], yn.strings)
-        assert_equal(["any of them"], yn.conditions)
-        
+        self.failUnlessEqual(["any of them"], yn.conditions)
+    
+    def testRuleNormalizationWithoutStrings(self):
+        ruletext = """rule encryption_Camellia: encryption camellia summary
+        {
+            meta:
+                description = "Camellia encryption algorithm"
+                domain = "encryption"
+                algorithm = "Camellia"
+                reference = "RFC 3713, http://www.ietf.org/rfc/rfc3713.txt"
+                rule_author = "Andreas Schuster"
+                weight = 192
+            condition:
+                (
+                encryption_Camellia_sigma_be
+                or encryption_Camellia_sigma_le
+                or encryption_Camellia_splitsigma_be
+                or encryption_Camellia_splitsigma_le
+                ) and (
+                encryption_Camellia_combinedsbox1
+                or (encryption_Camellia_sbox1 and encryption_Camellia_tables)
+                )
+        }"""
+        yn = yaratool.YaraRule(ruletext)
+        self.failUnlessEqual("yn01:e9800998ecf8427e:e4ce92c847", yn.hash())
+        self.failUnlessEqual("encryption_Camellia", yn.name)
+        self.failUnlessEqual(["encryption","camellia","summary"], yn.tags)
+        self.failUnlessEqual("\"Camellia encryption algorithm\"", yn.metas['description'])
+        self.failUnlessEqual("192", yn.metas['weight'])
+        self.failUnlessEqual(["(","encryption_Camellia_sigma_be","or encryption_Camellia_sigma_le",
+                        "or encryption_Camellia_splitsigma_be", "or encryption_Camellia_splitsigma_le",
+                        ") and (", "encryption_Camellia_combinedsbox1",
+                        "or (encryption_Camellia_sbox1 and encryption_Camellia_tables)",
+                        ")"], yn.conditions)
 
 if __name__ == '__main__':
     unittest.main()

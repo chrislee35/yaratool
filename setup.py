@@ -10,7 +10,7 @@ def read(fname):
 
 setup(
     name = "yaratool",
-    version = "0.0.2",
+    version = "0.0.5",
     author = "Chris Lee & Friends",
     author_email = "python @ chrislee.dhs.org",
     description = ("Python libary to normalize Yara signatures"),
@@ -18,7 +18,7 @@ setup(
     keywords = "yara malware",
     url = "https://github.com/chrislee35/yaratool",
     packages=['yaratool', 'tests'],
-    long_description=read('README.md'),
+    long_description=read('README'),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Topic :: Utilities",

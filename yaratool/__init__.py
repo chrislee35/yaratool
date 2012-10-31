@@ -38,11 +38,11 @@ class YaraRule:
         self.lookup_table = {}
         self.next_replacement = 0
 
-        rulere = re.compile("rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s\-\_]+\w))?\s*\{\s*(meta:\s*(.*?))?strings:\s*(.*?)\s*condition:\s*(.*?)\s*\}", flags=(re.MULTILINE | re.DOTALL))
+        rulere = re.compile("rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s\-\_]+\w))?\s*\{\s*(meta:\s*(.*?))?(strings:\s*(.*?))?\s*condition:\s*(.*?)\s*\}", flags=(re.MULTILINE | re.DOTALL))
         match = rulere.search(ruletext)
         if not match:
             raise Exception("YaraRule cannot parse the rule")
-        self.name,iftags,tags,ifmeta,metas,strings,conditions = match.groups()
+        self.name,iftags,tags,ifmeta,metas,ifstrings,strings,conditions = match.groups()
         if iftags:
             self.tags = re.split('\s+', tags)
         else:
