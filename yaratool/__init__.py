@@ -27,7 +27,7 @@ import sys
 import hashlib
 
 __author__ =  'python@chrislee.dhs.org'
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __url__ = 'https://github.com/chrislee/yaratools'
 
 class YaraRule:
@@ -50,10 +50,18 @@ class YaraRule:
 
         self.metas = {}
         if ifmeta:
+            # another fine patch from dspruell
+            mstore = {}
             for item in re.split('\n+', metas):
-                if re.search('\w',item):
-                    k,v = re.split('\s*=\s*',item.strip(),maxsplit=1)
-                    self.metas[k] = v
+                if re.search('\w', item):
+                    k,v = re.split('\s*=\s*', item.strip(), maxsplit=1)
+                    v = v.strip('"')
+                    if not k in mstore:
+                        mstore[k] = []
+                    mstore[k].append(v)
+            for k in mstore.keys():
+                self.metas[k] = mstore[k][0] if len(mstore[k]) == 1 else mstore[k]
+                
         if strings:
             strarr = re.split('\n+', strings)
             self.strings = []
@@ -161,7 +169,8 @@ def split(rulestext):
     commentre = re.compile(r"^\s*\/\/.*$",flags=re.MULTILINE)
     rulestext = commentre.sub('', rulestext)
     # extract all the well-formed rules
-    rulere = re.compile("(rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s]+\w))?\s*\{\s*(meta:\s*(.*?))?strings:\s*(.*?)\s*condition:\s*(.*?)\s*\})", flags=(re.MULTILINE | re.DOTALL))
+    # patch by dspruell
+    rulere = re.compile("(rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s]+\w))?\s*\{\s*(meta:\s*(.*?))?(strings:\s*(.*?)\s*)?condition:\s*(.*?)\s*\})", flags=(re.MULTILINE | re.DOTALL))
     # pass each rule to a YaraRule instance for normalization
     rules = [YaraRule(ruletext[0]) for ruletext in rulere.findall(rulestext)]
     return rules
