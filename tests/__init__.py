@@ -19,6 +19,7 @@ author = "AlienVault Labs"
 type = "info"
 severity = 1
 description = "Debugger detection tricks"
+production = FALSE
 
 strings:
 $proc1 = "wireshark" nocase ascii wide
@@ -37,7 +38,7 @@ condition:
 }"""
         yn = yaratool.YaraRule(ruletext)
         self.failUnlessEqual("dbgdetect_procs",yn.name)
-        self.failUnlessEqual("\"AlienVault Labs\"",yn.metas['author'])
+        self.failUnlessEqual("AlienVault Labs",yn.metas['author'])
         self.failUnlessEqual(["$proc1 = \"wireshark\" nocase ascii wide",
                 "$proc2 = \"filemon\" nocase ascii wide",
                 "$proc3 = \"procexp\" nocase ascii wide",
@@ -54,6 +55,7 @@ condition:
   meta:
     author = "AlienVault Labs"
     description = "Debugger detection tricks"
+    production = false
     severity = 1
     type = "info"
   strings:
@@ -76,6 +78,7 @@ condition:
   meta:
     author = "AlienVault Labs"
     description = "Debugger detection tricks"
+    production = false
     severity = 1
     type = "info"
   strings:
@@ -98,6 +101,7 @@ condition:
         ruletext = """rule DataConversion__wide : IntegerParsing DataConversion {
 meta:
 weight = 1
+production = tRUe
 strings:
 $ = "wtoi" nocase
 $ = "wtol" nocase
@@ -108,7 +112,7 @@ any of them
 }"""
         yn = yaratool.YaraRule(ruletext)
         self.failUnlessEqual("yn01:a5fd8576f2da34e2:d936fceffe", yn.hash())
-        self.failUnlessEqual("1", yn.metas['weight'])
+        self.failUnlessEqual(1, yn.metas['weight'])
         self.failUnlessEqual("DataConversion__wide", yn.name)
         self.failUnlessEqual(["IntegerParsing", "DataConversion"], yn.tags)
         self.failUnlessEqual(["$ = \"wtoi\" nocase",
@@ -142,8 +146,8 @@ or (encryption_Camellia_sbox1 and encryption_Camellia_tables)
         self.failUnlessEqual("yn01:e9800998ecf8427e:e4ce92c847", yn.hash())
         self.failUnlessEqual("encryption_Camellia", yn.name)
         self.failUnlessEqual(["encryption","camellia","summary"], yn.tags)
-        self.failUnlessEqual("\"Camellia encryption algorithm\"", yn.metas['description'])
-        self.failUnlessEqual("192", yn.metas['weight'])
+        self.failUnlessEqual("Camellia encryption algorithm", yn.metas['description'])
+        self.failUnlessEqual(192, yn.metas['weight'])
         self.failUnlessEqual(["(","encryption_Camellia_sigma_be","or encryption_Camellia_sigma_le",
                         "or encryption_Camellia_splitsigma_be", "or encryption_Camellia_splitsigma_le",
                         ") and (", "encryption_Camellia_combinedsbox1",

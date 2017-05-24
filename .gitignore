@@ -1,3 +1,6 @@
 yaratool/__pycache__
 *.pyc
 */*.pyc
+build
+dist
+yaratool.egg-info

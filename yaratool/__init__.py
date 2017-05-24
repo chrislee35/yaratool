@@ -27,7 +27,7 @@ import sys
 import hashlib
 
 __author__ =  'python@chrislee.dhs.org'
-__version__ = "0.0.2"
+__version__ = "0.0.6"
 __url__ = 'https://github.com/chrislee/yaratools'
 
 class YaraRule:
@@ -55,7 +55,14 @@ class YaraRule:
             for item in re.split('\n+', metas):
                 if re.search('\w', item):
                     k,v = re.split('\s*=\s*', item.strip(), maxsplit=1)
-                    v = v.strip('"')
+                    if re.match('(\+|\-)?\d+', v):
+                        v = int(v)
+                    elif re.match('(\+|\-)?\d+\.\d+', v):
+                        v = float(v)
+                    else:
+                        v = v.strip('"')
+                        if v.lower() in ['true', 'false']:
+                          v = v.lower() == 'true'
                     if not k in mstore:
                         mstore[k] = []
                     mstore[k].append(v)
@@ -96,7 +103,17 @@ class YaraRule:
             text += "  meta:\n"
             for key in sorted(self.metas):
                 if re.search('\w',key):
-                    text += "    %s = %s\n" % (key,self.metas[key])
+                    if type(self.metas[key]) != list:
+                        self.metas[key] = [self.metas[key]]
+                    for value in self.metas[key]:
+                        if type(value) == str:
+                            text += "    %s = \"%s\"\n" % (key, value)
+                        elif type(value) == bool:
+                            text += "    %s = %s\n" % (key, str(value).lower())
+                        elif type(value) in [int, long]:
+                            text += "    %s = %d\n" % (key, value)
+                        elif type(value) == float:
+                            text += "    %s = %f\n" % (key, value)
         if len(self.strings) > 0:
             text += "  strings:\n"
             for string in self.strings:
