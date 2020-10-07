@@ -10,7 +10,7 @@ def read(fname):
 
 setup(
     name = "yaratool",
-    version = "0.0.7",
+    version = "0.1.0",
     author = "Chris Lee & Friends",
     author_email = "python @ chrislee.dhs.org",
     description = ("Python libary to normalize Yara signatures"),
