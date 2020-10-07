@@ -8,35 +8,47 @@ class YaraRule:
         self.original = ruletext
         self.lookup_table = {}
         self.next_replacement = 0
+        self.normalized_conditions = []
+        
+        commentre = re.compile('\\/\\*.+\\*\\/', flags=re.DOTALL)
+        self.comments = commentre.findall(ruletext)
+        ruletext = commentre.sub('', ruletext)
 
-        rulere = re.compile("rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s\-\_]+\w))?\s*\{\s*(meta:\s*(.*?))?(strings:\s*(.*?))?\s*condition:\s*(.*?)\s*\}", flags=(re.MULTILINE | re.DOTALL))
+        rulere = re.compile("rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s\-\_]+\w))?\s*\{\s*(meta\s*:\s*(.*?))?(strings\s*:\s*(.*?))?\s*(condition\s*:\s*(.*?))?\s*\}", flags=(re.MULTILINE | re.DOTALL))
         match = rulere.search(ruletext)
         if not match:
+            print(ruletext)
             raise Exception("YaraRule cannot parse the rule")
-        self.name,iftags,tags,ifmeta,metas,ifstrings,strings,conditions = match.groups()
+        self.name,iftags,tags,ifmeta,metas,ifstrings,strings,ifconditions,conditions = match.groups()
         if iftags:
             self.tags = re.split('\s+', tags)
         else:
             self.tags = None
 
         self.metas = {}
+        
         if ifmeta:
             # another fine patch from dspruell
             mstore = {}
             for item in re.split('\n+', metas):
                 if re.search('\w', item):
-                    k,v = re.split('\s*=\s*', item.strip(), maxsplit=1)
-                    if re.match('(\+|\-)?\d+', v):
-                        v = int(v)
-                    elif re.match('(\+|\-)?\d+\.\d+', v):
-                        v = float(v)
-                    else:
-                        v = v.strip('"')
-                        if v.lower() in ['true', 'false']:
-                          v = v.lower() == 'true'
-                    if not k in mstore:
-                        mstore[k] = []
-                    mstore[k].append(v)
+                    try:
+                        k,v = re.split('\s*=\s*', item.strip(), maxsplit=1)
+                        if re.match('(\+|\-)?\d+', v):
+                            v = int(v)
+                        elif re.match('(\+|\-)?\d+\.\d+', v):
+                            v = float(v)
+                        else:
+                            v = v.strip('"')
+                            if v.lower() in ['true', 'false']:
+                              v = v.lower() == 'true'
+                        if not k in mstore:
+                            mstore[k] = []
+                        mstore[k].append(v)
+                    except ValueError as e:
+                        print(item.strip())
+                        print(metas)
+                        raise(e)
             for k in mstore.keys():
                 self.metas[k] = mstore[k][0] if len(mstore[k]) == 1 else mstore[k]
                 
