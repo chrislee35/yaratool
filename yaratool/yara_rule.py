@@ -1,5 +1,6 @@
 import re
 import hashlib
+from pprint import pprint
 
 class YaraRule:
     def __init__(self, ruletext):
@@ -10,16 +11,17 @@ class YaraRule:
         self.next_replacement = 0
         self.normalized_conditions = []
         
-        commentre = re.compile('\\/\\*.+\\*\\/', flags=re.DOTALL)
-        self.comments = commentre.findall(ruletext)
-        ruletext = commentre.sub('', ruletext)
+        #commentre = re.compile('\\/\\*.+\\*\\/', flags=re.DOTALL)
+        self.comments = []#commentre.findall(ruletext)
+        #ruletext = commentre.sub('', ruletext)
 
-        rulere = re.compile("rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s\-\_]+\w))?\s*\{\s*(meta\s*:\s*(.*?))?(strings\s*:\s*(.*?))?\s*(condition\s*:\s*(.*?))?\s*\}", flags=(re.MULTILINE | re.DOTALL))
+        rulere = re.compile(r"rule\s+([\w\_\-]+)(\s*:\s*(\w[\w\s\-\_]+\w))?\s*\{\s*(meta\s*:\s*(.*?))?(strings\s*:\s*(.*?))?\s*condition\s*:\s*(.*?)\s*\}", flags=(re.MULTILINE | re.DOTALL))
         match = rulere.search(ruletext)
         if not match:
             print(ruletext)
             raise Exception("YaraRule cannot parse the rule")
-        self.name,iftags,tags,ifmeta,metas,ifstrings,strings,ifconditions,conditions = match.groups()
+        self.name,iftags,tags,ifmeta,metas,ifstrings,strings,conditions = match.groups()
+        #pprint((self.name,iftags,tags,ifmeta,metas,ifstrings,strings,conditions))
         if iftags:
             self.tags = re.split('\s+', tags)
         else:
@@ -27,11 +29,26 @@ class YaraRule:
 
         self.metas = {}
         
+        in_multiline_comment = False
+        comment = ""
         if ifmeta:
             # another fine patch from dspruell
             mstore = {}
             for item in re.split('\n+', metas):
-                if re.search('\w', item):
+                if in_multiline_comment:
+                    if item.strip().endswith('*/'):
+                        comment += item
+                        self.comments.append(comment)
+                        in_multiline_comment = False
+                        comment = ""
+                elif item.strip().startswith('/*'):
+                    comment = item
+                    in_multiline_comment = True
+                    if item.strip().endswith('*/'):
+                        self.comments.append(comment)
+                        in_multiline_comment = False
+                        comment = ""
+                elif re.search('\w', item):
                     try:
                         k,v = re.split('\s*=\s*', item.strip(), maxsplit=1)
                         if re.match('(\+|\-)?\d+', v):
@@ -63,6 +80,7 @@ class YaraRule:
                 # reformat any hex strings to be lower case, space in between each two characters, and the {}
                 # e.g., { 01 23 45 67 89 ab cd ef }
                 hexmatch = re.search(r' = \{\s*([0-9a-fA-F\s]+?)\s*\}', item)
+                #print(hexmatch)
                 if hexmatch:
                     hexstr = re.sub(r'\s', '', hexmatch.groups()[0]).lower()
                     hexstr = " ".join([hexstr[i:i+2] for i in range(0,len(hexstr), 2)])
