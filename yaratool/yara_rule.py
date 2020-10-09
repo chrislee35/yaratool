@@ -146,7 +146,10 @@ class YaraRule:
         returns a normalized yara hash, version 01, the idea is that rules with the same strings and condition should evaluate to the same hash.
         e.g., yn01:042c1fd05933b9b1:4ca58b3314
         """
-        normalized_strings = "%".join(sorted([re.sub('^.*?=\s*','',string.strip()) for string in self.strings]))
+        # remove comments from the end of strings (they shouldn't contribute to the hash)
+        strings = [ re.sub(r'\s*\/\*.*?\*/$', '', string) for string in self.strings ]
+        # only keep the right side value of the string
+        normalized_strings = "%".join(sorted([re.sub('^.*?=\s*','',string.strip()) for string in strings]))
         self.normalized_strings = normalized_strings
         normalized_condition = '%'.join([con.strip() for con in self.normalized_conditions])
         strhash = hashlib.md5(normalized_strings.encode('UTF-8')).hexdigest()
